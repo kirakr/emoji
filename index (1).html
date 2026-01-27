@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Character Ritual Tycoon - Save Edition</title>
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --accent: #00ff88;
+            --color-normal: #ffffff;
+            --color-uncommon: #1eff00;
+            --color-rare: #0070dd;
+            --color-epic: #a335ee;
+            --color-legend: #ff8000;
+            --color-god: #ffb100;
+            --color-secret: #e6cc80;
+            --color-original: #ff0000;
+            --price: #ffeb3b;
+            --error: #ff4444;
+        }
+        body { font-family: 'Arial Black', sans-serif; background: var(--bg); color: white; margin: 0; overflow: hidden; user-select: none; }
+        #flash-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: red; opacity:0; pointer-events:none; z-index: 1000; }
+        .flash-anim { animation: flash-effect 0.5s ease-out; }
+        @keyframes flash-effect { 0% { opacity: 0.7; } 100% { opacity: 0; } }
+        #wanted-overlay { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255, 0, 0, 0.9); color: white; padding: 20px 40px; border: 4px solid white; z-index: 999; text-align: center; display: none; box-shadow: 0 0 50px red; pointer-events: none; }
+        #hud { display: flex; justify-content: space-around; background: #000; padding: 10px; border-bottom: 3px solid var(--accent); z-index: 100; }
+        .stat-box { font-size: 1rem; text-shadow: 0 0 5px var(--accent); }
+        #game-world { display: flex; height: calc(100vh - 55px); }
+        #conveyor-area { width: 25%; border-right: 2px dashed #444; position: relative; overflow: hidden; background: #111; }
+        .conveyor-line { position: absolute; width: 80px; height: 100%; left: 50%; transform: translateX(-50%); background: #1a1a1a; border-left: 5px solid #333; }
+        .meme-container { position: absolute; z-index: 10; cursor: pointer; text-align: center; width: 120px; }
+        .meme-label { background: rgba(0,0,0,0.9); border: 2px solid #fff; border-radius: 6px; padding: 4px; font-size: 0.6rem; margin-bottom: 5px; }
+        #base-area-container { width: 50%; padding: 10px; text-align: center; display: flex; flex-direction: column; justify-content: space-between; }
+        #base-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; justify-items: center; }
+        
+        .slot { width: 115px; height: 150px; background: #1a1a1a; border: 2px solid #333; display: flex; flex-direction: column; align-items: center; padding: 8px 5px 5px 5px; border-radius: 12px; position: relative; transition: 0.2s; box-sizing: border-box; }
+        .slot.locked { background: #000; border: 2px dashed #222; opacity: 0.3; justify-content: center; height: 150px; }
+        .slot-emoji { font-size: 2.2rem; margin-bottom: 2px; cursor: pointer; transition: transform 0.2s; z-index: 2; }
+        
+        .slot.occupied:hover { background: #301010; border-color: var(--error); }
+        .slot.occupied:hover .slot-emoji { transform: scale(1.1); filter: drop-shadow(0 0 5px red); }
+        .slot.occupied::before { content: "SELL"; position: absolute; top: 5px; right: 5px; background: var(--error); color: white; font-size: 0.6rem; padding: 2px 5px; border-radius: 4px; opacity: 0; transition: 0.2s; z-index: 3; pointer-events: none; font-weight: bold; }
+        .slot.occupied:hover::before { opacity: 1; }
+
+        .slot-name { font-size: 0.65rem; color: #fff; white-space: nowrap; overflow: hidden; width: 95%; pointer-events: none; font-weight: bold; }
+        .slot-profit-rate { font-size: 0.6rem; color: #aaa; margin-bottom: 6px; pointer-events: none; }
+
+        .collect-btn { 
+            background: var(--accent); color: black; border: none; border-radius: 6px; 
+            font-size: 0.9rem; font-weight: 900; padding: 10px 0; width: 100%; cursor: pointer; 
+            margin-top: auto; z-index: 10; box-shadow: 0 3px 0 #009955; 
+            transition: transform 0.05s, background 0.2s;
+        }
+        .collect-btn:hover { background: #00ffaa; }
+        .collect-btn:active { transform: translateY(3px); box-shadow: none; }
+        .collect-btn:disabled { background: #333; color: #666; box-shadow: none; transform: none; cursor: default; }
+
+        #raid-area { width: 25%; border-left: 2px solid #444; padding: 10px; text-align: center; background: #0f0f0f; display: flex; flex-direction: column; }
+        #rebirth-panel { background: #111; border: 2px solid #333; border-radius: 10px; padding: 10px; margin-top: 5px; }
+        .condition { font-size: 0.75rem; margin: 4px 0; }
+        .main-btn { background: var(--accent); border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; width: 95%; font-size: 1rem; color: #000; margin-bottom: 10px; }
+        .book-btn { background: #333; color: white; border: 1px solid #555; }
+        #book-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 2000; display: none; overflow-y: auto; padding: 40px 20px; }
+        .book-content { max-width: 900px; margin: 0 auto; }
+        .book-rarity-section { margin-bottom: 30px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+        .book-card { background: #111; border: 1px solid #444; border-radius: 8px; padding: 10px; text-align: center; transition: 0.3s; }
+        .book-card.unknown { opacity: 0.3; filter: grayscale(100%) blur(1px); }
+        .book-card.unknown .emoji-book { filter: brightness(0); }
+        .close-book { position: fixed; top: 20px; right: 20px; background: var(--error); color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; z-index: 2100; }
+        .met { color: var(--accent); }
+        .not-met { color: var(--error); }
+    </style>
+</head>
+<body>
+    <div id="flash-overlay"></div>
+    <div id="wanted-overlay"><h1>⚠️ WANTED ⚠️</h1><p>5秒後にこの表示は消えます</p><h2 id="wanted-timer">180s</h2></div>
+    <div id="book-modal">
+        <button class="close-book" onclick="toggleBook()">閉じる</button>
+        <div class="book-content">
+            <h1 style="color:var(--accent); text-align: center;">📜 キャラクター図鑑 (全87体)</h1>
+            <div id="book-list"></div>
+        </div>
+    </div>
+    <div id="hud">
+        <div class="stat-box">💰 $<span id="money">100</span></div>
+        <div class="stat-box">⚡ $<span id="pps">0</span>/s</div>
+        <div class="stat-box">💎 Rebirth: <span id="rebirth">0</span>/6</div>
+    </div>
+    <div id="game-world">
+        <div id="conveyor-area"><div class="conveyor-line"></div><div id="items-container"></div></div>
+        <div id="base-area-container">
+            <h3 style="margin: 5px 0;">MY BASE</h3>
+            <div id="base-grid"></div>
+            <div id="rebirth-panel">
+                <h4 style="margin: 0 0 5px 0; color: var(--accent); font-size: 0.9rem;">🔄 転生条件</h4>
+                <div id="cond-money" class="condition"></div>
+                <div id="cond-item" class="condition"></div>
+                <button onclick="rebirth()" id="rebirth-btn" class="main-btn">転生儀式を開始</button>
+            </div>
+        </div>
+        <div id="raid-area">
+            <h3>BLACK MARKET</h3>
+            <div style="font-size: 2.5rem; margin: 10px;">🕵️‍♂️</div>
+            <button id="raid-btn" class="main-btn" onclick="raid()">盗む (10%)</button>
+            <div style="margin-top: auto;">
+                <button class="main-btn book-btn" onclick="toggleBook()">📖 キャラ図鑑を見る</button>
+                <button class="main-btn" style="background:#555; color:white; font-size:0.7rem; padding:5px;" onclick="resetSave()">⚠️ セーブ初期化</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let money = 100;
+        let rebirths = 0;
+        let myItems = [];
+        let discoveredChars = new Set();
+        let isRaidLocked = false;
+        let spawnCounter = 0;
+        let lastSpawnTop = -200;
+        const baseSlots = 6;
+        const absoluteMaxSlots = 12;
+
+        const charDatabase = {
+            "ノーマル": [{name:"ガイコツ", emoji:"💀", power:1.0}, {name:"石像", emoji:"🗿", power:1.1}, {name:"ニコちゃん", emoji:"🙂", power:0.9}, {name:"石ころ", emoji:"🪨", power:0.5}, {name:"雑草", emoji:"🌿", power:0.8}, {name:"ハト", emoji: "🕊️", power:1.2}, {name:"空き缶", emoji:"🥫", power:0.4}, {name:"ボロ靴", emoji:"👟", power:0.6}, {name:"ネジ", emoji:"🔩", power:0.7}, {name:"ミミズ", emoji:"🪱", power:0.8}, {name:"枯れ葉", emoji:"🍂", power:0.5}, {name:"土塊", emoji:"💩", power:1.3}, {name:"紙屑", emoji:"📄", power:0.4}, {name:"釘", emoji:"📍", power:0.9}, {name:"アリ", emoji:"🐜", power:1.1}, {name:"小枝", emoji:"🥢", power:0.7}, {name:"ボタン", emoji:"🔘", power:1.0}, {name:"種", emoji:"🌱", power:1.2}],
+            "珍しい": [{name:"キノコ", emoji:"🍄", power:1.1}, {name:"幼虫", emoji:"🐛", power:0.9}, {name:"黒猫", emoji:"🐈‍⬛", power:1.2}, {name:"クローバー", emoji:"🍀", power:1.5}, {name:"サボテン", emoji:"🌵", power:1.0}, {name:"風船犬", emoji:"🎈", power:0.8}, {name:"オウム", emoji:"🦜", power:1.1}, {name:"メガネ", emoji:"🤓", power:1.3}, {name:"ジト目", emoji:"🤨", power:1.0}, {name:"トカゲ", emoji:"🦎", power:1.2}, {name:"ホタル", emoji:"💡", power:1.4}, {name:"貝殻", emoji:"🐚", power:0.9}, {name:"コウモリ", emoji:"🦇", power:1.1}, {name:"カブト虫", emoji:"🪲", power:1.3}, {name:"テントウムシ", emoji:"🐞", power:1.0}, {name:"ハチ", emoji:"🐝", power:1.2}, {name:"リス", emoji:"🐿️", power:1.1}, {name:"カメ", emoji:"🐢", power:0.9}],
+            "レア": [{name:"宇宙猫", emoji:"🐈", power:1.4}, {name:"悲しき蛙", emoji:"🐸", power:1.0}, {name:"ドージ", emoji:"🐕", power:1.2}, {name:"金卵", emoji:"🥚", power:1.8}, {name:"メカ執事", emoji:"🤖", power:1.3}, {name:"ユニコーン", emoji:"🦄", power:1.5}, {name:"氷精霊", emoji:"🧚", power:1.1}, {name:"立方体", emoji:"🧊", power:1.0}, {name:"幽霊提灯", emoji:"🏮", power:0.9}, {name:"火の玉", emoji:"☄️", power:1.6}, {name:"水晶", emoji:"🔮", power:1.4}, {name:"古銭", emoji:"🪙", power:1.7}, {name:"化石", emoji:"🦴", power:1.2}, {name:"宝箱", emoji:"📦", power:1.5}, {name:"羅針盤", emoji:"🧭", power:1.1}],
+            "エピック": [{name:"地獄道化師", emoji:"🤡", power:1.0}, {name:"燃える闘魂", emoji:"🔥", power:1.5}, {name:"純粋金剛", emoji:"💎", power:1.8}, {name:"混沌召喚師", emoji:"🧙", power:1.4}, {name:"黄金スカラベ", emoji:"🪲", power:1.6}, {name:"サイバー忍者", emoji:"🥷", power:1.3}, {name:"冥界の馬", emoji:"🐎", power:1.7}, {name:"呪いの人形", emoji:"🎎", power:1.2}, {name:"雷鳥", emoji:"🦅", power:1.5}, {name:"深海魚", emoji:"🐟", power:1.4}, {name:"魔導書", emoji:"📖", power:1.9}, {name:"錬金釜", emoji:"🏺", power:1.6}],
+            "伝説": [{name:"古の龍", emoji:"🐲", power:1.2}, {name:"王座の主", emoji:"👑", power:1.8}, {name:"雷神の怒り", emoji:"⚡", power:1.5}, {name:"不死鳥", emoji:"🐤", power:1.4}, {name:"深海覇者", emoji:"🐙", power:1.1}, {name:"天空騎士", emoji:"🛡️", power:1.3}, {name:"聖剣", emoji:"🗡️", power:1.9}, {name:"魔眼", emoji:"🧿", power:1.6}, {name:"賢者の石", emoji:"🔴", power:2.0}],
+            "神": [{name:"全知の眼", emoji:"👁️", power:1.5}, {name:"銀河守護者", emoji:"🌌", power:2.0}, {name:"復讐般若", emoji:"👺", power:1.4}, {name:"太陽化身", emoji:"☀️", power:1.8}, {name:"時を統べる者", emoji:"⏳", power:1.6}, {name:"命の精霊", emoji:"🌳", power:1.2}],
+            "秘密": [{name:"バグ星人", emoji:"👾", power:2.5}, {name:"次元の渦", emoji:"🌀", power:2.0}, {name:"未確認物体", emoji:"❓", power:1.8}, {name:"虚無の影", emoji:"👤", power:3.0}, {name:"裏の住人", emoji:"👤", power:2.2}, {name:"禁断の果実", emoji:"🍎", power:1.5}],
+            "オリジナル": [{name:"伝説の超星", emoji:"🌟", power:1.5}, {name:"奈落の鬼神", emoji:"👹", power:2.0}, {name:"海神の三叉槍", emoji:"🔱", power:1.8}]
+        };
+
+        const rarities = [
+            { name: "ノーマル", color: "var(--color-normal)", chance: 50, basePrice: 10, baseValue: 1 },
+            { name: "珍しい", color: "var(--color-uncommon)", chance: 25, basePrice: 80, baseValue: 6 },
+            { name: "レア", color: "var(--color-rare)", chance: 15, basePrice: 450, baseValue: 40 },
+            { name: "エピック", color: "var(--color-epic)", chance: 6, basePrice: 2500, baseValue: 200 },
+            { name: "伝説", color: "var(--color-legend)", chance: 3, basePrice: 20000, baseValue: 1500 },
+            { name: "神", color: "var(--color-god)", chance: 0.8, basePrice: 100000, baseValue: 8000 },
+            { name: "秘密", color: "var(--color-secret)", chance: 0.19, basePrice: 600000, baseValue: 50000 },
+            { name: "オリジナル", color: "var(--color-original)", chance: 0.01, basePrice: 7000000, baseValue: 600000 }
+        ];
+
+        const rebirthRequirements = [
+            { cost: 5000, targetName: "悲しき蛙" }, { cost: 30000, targetName: "地獄道化師" }, { cost: 200000, targetName: "王座の主" }, { cost: 1500000, targetName: "銀河守護者" }, { cost: 12000000, targetName: "次元の渦" }, { cost: 150000000, targetName: "奈落の鬼神" }
+        ];
+
+        // --- セーブ・ロード機能 ---
+        function saveGame() {
+            const data = {
+                money, rebirths, 
+                myItems, 
+                discoveredChars: Array.from(discoveredChars)
+            };
+            localStorage.setItem('ritualTycoonSave', JSON.stringify(data));
+        }
+
+        function loadGame() {
+            const saved = localStorage.getItem('ritualTycoonSave');
+            if (saved) {
+                const data = JSON.parse(saved);
+                money = data.money || 100;
+                rebirths = data.rebirths || 0;
+                myItems = data.myItems || [];
+                discoveredChars = new Set(data.discoveredChars || []);
+            }
+        }
+
+        function resetSave() {
+            if(confirm("セーブデータを消去して最初からやり直しますか？")) {
+                localStorage.removeItem('ritualTycoonSave');
+                location.reload();
+            }
+        }
+        // -------------------------
+
+        function initGrid() {
+            const grid = document.getElementById('base-grid');
+            grid.innerHTML = "";
+            for (let i = 0; i < absoluteMaxSlots; i++) {
+                const slot = document.createElement('div');
+                slot.id = `slot-${i}`;
+                grid.appendChild(slot);
+            }
+        }
+
+        function spawnItem() {
+            if (lastSpawnTop < 0 && lastSpawnTop > -200) return;
+            spawnCounter++;
+            const container = document.getElementById('items-container');
+            let selectedRarity;
+            if (spawnCounter % 30 === 0) {
+                const highRarities = rarities.slice(4);
+                selectedRarity = highRarities[Math.floor(Math.random() * highRarities.length)];
+            } else if (spawnCounter % 10 === 0) {
+                const highRarities = rarities.slice(3);
+                selectedRarity = highRarities[Math.floor(Math.random() * highRarities.length)];
+            } else {
+                let rand = Math.random() * 100;
+                let cumulative = 0;
+                selectedRarity = rarities[0];
+                for (let r of rarities) { cumulative += r.chance; if (rand <= cumulative) { selectedRarity = r; break; } }
+            }
+            const chars = charDatabase[selectedRarity.name];
+            const charObj = chars[Math.floor(Math.random() * chars.length)];
+            const actualValue = Math.max(1, Math.floor(selectedRarity.baseValue * charObj.power));
+            const div = document.createElement('div');
+            div.className = 'meme-container';
+            div.style.left = '50%'; div.style.top = '-200px'; div.style.transform = 'translateX(-50%)';
+            div.innerHTML = `<div class="meme-label" style="border-color:${selectedRarity.color}">
+                <span style="font-weight:bold;display:block;">${charObj.name}</span>
+                $${selectedRarity.basePrice.toLocaleString()}<br>+$${actualValue}/s</div>
+                <div style="font-size:2.5rem;">${charObj.emoji}</div>`;
+            container.appendChild(div);
+            let pos = -200;
+            const animate = () => {
+                pos += 0.5;
+                div.style.top = pos + 'px';
+                if (div.parentNode) lastSpawnTop = pos;
+                if (pos < window.innerHeight) requestAnimationFrame(animate); else div.remove();
+            };
+            requestAnimationFrame(animate);
+            div.onclick = () => {
+                let max = baseSlots + rebirths;
+                if (money >= selectedRarity.basePrice && myItems.length < max) {
+                    money -= selectedRarity.basePrice;
+                    discoveredChars.add(charObj.name);
+                    myItems.push({ name: charObj.name, emoji: charObj.emoji, value: actualValue, rarity: selectedRarity.name, cost: selectedRarity.basePrice, storedMoney: 0 });
+                    updateUI(); div.remove();
+                    saveGame(); // 購入時にセーブ
+                }
+            };
+        }
+
+        function updateUI() {
+            let max = baseSlots + rebirths;
+            let multiplier = (1 + rebirths);
+            for (let i = 0; i < absoluteMaxSlots; i++) {
+                const slot = document.getElementById(`slot-${i}`);
+                if (!slot) continue;
+                slot.innerHTML = "";
+                if (i < myItems.length) {
+                    const item = myItems[i];
+                    slot.className = 'slot occupied';
+                    slot.innerHTML = `<div class="slot-emoji" onclick="sellItem(${i})">${item.emoji}</div>
+                        <div class="slot-name">${item.name}</div>
+                        <div class="slot-profit-rate">+$${(item.value * multiplier).toLocaleString()}/s</div>
+                        <button class="collect-btn" onclick="collectMoney(${i})" ${Math.floor(item.storedMoney)<=0?'disabled':''}>
+                            $${Math.floor(item.storedMoney).toLocaleString()} 回収
+                        </button>`;
+                    const rData = rarities.find(r => r.name === item.rarity);
+                    slot.style.boxShadow = `inset 0 0 10px ${rData.color}, 0 4px 10px rgba(0,0,0,0.5)`;
+                } else if (i < max) {
+                    slot.className = 'slot'; slot.innerText = "EMPTY"; slot.style.fontSize = "0.7rem"; slot.style.color = "#444";
+                    slot.style.boxShadow = "none";
+                } else {
+                    slot.className = 'slot locked'; slot.innerText = "🔒"; slot.style.boxShadow = "none";
+                }
+            }
+            document.getElementById('money').innerText = Math.floor(money).toLocaleString();
+            document.getElementById('rebirth').innerText = rebirths;
+            updateRebirthPanel();
+        }
+
+        function collectMoney(index) {
+            let amount = Math.floor(myItems[index].storedMoney);
+            if (amount > 0) { 
+                money += amount; 
+                myItems[index].storedMoney -= amount; 
+                updateUI_Fast(); 
+                saveGame(); // 回収時にセーブ
+            }
+        }
+
+        setInterval(() => {
+            let totalRate = 0;
+            myItems.forEach(item => {
+                let gain = item.value * (1 + rebirths);
+                item.storedMoney += gain;
+                totalRate += gain;
+            });
+            updateUI_Fast(); 
+            document.getElementById('pps').innerText = totalRate.toLocaleString();
+        }, 1000);
+
+        function updateUI_Fast() {
+            document.getElementById('money').innerText = Math.floor(money).toLocaleString();
+            myItems.forEach((item, i) => {
+                const btn = document.querySelector(`#slot-${i} .collect-btn`);
+                if (btn) {
+                    btn.innerText = `$${Math.floor(item.storedMoney).toLocaleString()} 回収`;
+                    btn.disabled = Math.floor(item.storedMoney) <= 0;
+                }
+            });
+        }
+
+        function updateRebirthPanel() {
+            const panel = document.getElementById('rebirth-panel');
+            if (rebirths >= 6) { panel.innerHTML = "最大転生達成"; return; }
+            const req = rebirthRequirements[rebirths];
+            const hasMoney = money >= req.cost;
+            const hasItem = myItems.some(item => item.name === req.targetName);
+            document.getElementById('cond-money').innerHTML = `金: <span class="${hasMoney?'met':'not-met'}">$${req.cost.toLocaleString()}</span>`;
+            document.getElementById('cond-item').innerHTML = `供物: <span class="${hasItem?'met':'not-met'}">${req.targetName}</span>`;
+            document.getElementById('rebirth-btn').disabled = !(hasMoney && hasItem);
+        }
+
+        function sellItem(index) {
+            const it = myItems[index];
+            money += Math.floor(it.cost / 2); 
+            myItems.splice(index, 1); 
+            updateUI();
+            saveGame(); // 売却時にセーブ
+        }
+
+        function raid() {
+            if (isRaidLocked) return;
+            const btn = document.getElementById('raid-btn');
+            btn.disabled = true;
+            setTimeout(() => {
+                if (Math.random() < 0.1) {
+                    if (myItems.length < (baseSlots + rebirths)) {
+                        const c = charDatabase["神"][Math.floor(Math.random()*charDatabase["神"].length)];
+                        discoveredChars.add(c.name);
+                        myItems.push({ name: c.name, emoji: c.emoji, value: 8000, rarity: "神", cost: 100000, storedMoney: 0 });
+                        updateUI();
+                        saveGame(); // 盗み成功時にセーブ
+                        alert("成功！神を奪取した！");
+                    }
+                    btn.disabled = false;
+                } else { triggerFailure(); }
+            }, 800);
+        }
+
+        function triggerFailure() {
+            isRaidLocked = true;
+            document.getElementById('flash-overlay').classList.add('flash-anim');
+            setTimeout(() => document.getElementById('flash-overlay').classList.remove('flash-anim'), 500);
+            const wanted = document.getElementById('wanted-overlay');
+            wanted.style.display = 'block';
+            setTimeout(() => wanted.style.display = 'none', 5000);
+            let timeLeft = 180;
+            const btn = document.getElementById('raid-btn');
+            const timer = setInterval(() => {
+                timeLeft--; btn.innerText = `逃走中 ${timeLeft}s`;
+                document.getElementById('wanted-timer').innerText = timeLeft + "s";
+                if (timeLeft <= 0) { clearInterval(timer); isRaidLocked = false; btn.disabled = false; btn.innerText = "盗む (10%)"; }
+            }, 1000);
+        }
+
+        function rebirth() {
+            const req = rebirthRequirements[rebirths];
+            if (money >= req.cost && myItems.some(item => item.name === req.targetName)) {
+                money = 100; myItems = []; rebirths++; 
+                updateUI();
+                saveGame(); // 転生時にセーブ
+            }
+        }
+
+        function toggleBook() {
+            const modal = document.getElementById('book-modal');
+            if (modal.style.display !== 'block') {
+                const list = document.getElementById('book-list');
+                list.innerHTML = "";
+                rarities.forEach(r => {
+                    const section = document.createElement('div');
+                    section.className = 'book-rarity-section';
+                    section.innerHTML = `<h2 style="color:${r.color}">【${r.name}】</h2>`;
+                    const grid = document.createElement('div');
+                    grid.className = 'book-grid';
+                    charDatabase[r.name].forEach(c => {
+                        const isKnown = discoveredChars.has(c.name);
+                        grid.innerHTML += `<div class="book-card ${isKnown ? '' : 'unknown'}" style="border-color:${isKnown ? r.color : '#222'}">
+                            <div class="emoji-book" style="font-size:2rem;">${isKnown ? c.emoji : '❓'}</div>
+                            <div style="font-size:0.75rem; font-weight:bold;">${isKnown ? c.name : '？？？'}</div>
+                            <div style="font-size:0.6rem; color:var(--price);">$${r.basePrice.toLocaleString()}</div>
+                        </div>`;
+                    });
+                    section.appendChild(grid);
+                    list.appendChild(section);
+                });
+            }
+            modal.style.display = modal.style.display === 'block' ? 'none' : 'block';
+        }
+
+        // 初期化処理の流れ
+        loadGame();   // まず保存データを読み込む
+        initGrid();   // 枠組みを作る
+        updateUI();   // 読み込んだデータで表示を更新
+        setInterval(spawnItem, 250);
+    </script>
+</body>
+</html>
